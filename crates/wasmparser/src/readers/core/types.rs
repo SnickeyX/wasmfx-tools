@@ -960,6 +960,9 @@ impl ValType {
 //
 //   0111 = cont
 //   0110 = nocont
+// 
+//   1010 = nhcont
+//   1011 = nonhcont
 //
 //   0001 = exn
 //
@@ -1187,7 +1190,7 @@ impl RefType {
                         | Self::EXN_ABSTYPE
                         | Self::NOEXN_ABSTYPE
                         | Self::CONT_ABSTYPE
-                        | Self::NOCONT_ABSTYPE
+                        | Self::NOCONT_ABSTYPE  // TODO(ishmis): nhcont and nonhcont
                 )
         );
 
@@ -1410,6 +1413,7 @@ impl RefType {
                     (true, false, NoExn) => "(ref (shared noexn))",
                     (true, false, Cont) => "(ref (shared cont))",
                     (true, false, NoCont) => "(ref (shared nocont))",
+                    // TODO(ishmis): nhcont and nonhcont
                     // Neither shared nor nullable.
                     (false, false, Func) => "(ref func)",
                     (false, false, Extern) => "(ref extern)",
@@ -1683,6 +1687,8 @@ impl<'a> FromReader<'a> for ValType {
         // | 0x4F    | -49     | sub final $t | gc proposal, prefix byte     |
         // | 0x4E    | -50     | rec $t       | gc proposal, prefix byte     |
         // | 0x40    | -64     | ε            | empty block type             |
+        // | 0xBF7F  | -65     | nhcont $n $t | named handler                | 
+        // | 0xBE7F  | -66     | nonhcont     | named handler                |
         //
         // Note that not all of these encodings are parsed here, for example
         // 0x78 as the encoding for `i8` is parsed only in `FieldType`. The
