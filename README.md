@@ -1,7 +1,7 @@
-<div align="center">
-  <h1><code>wasm-tools</code></h1>
+# Named Effect Handler Proposal for WebAssembly (WIP)
 
-<strong>A <a href="https://bytecodealliance.org/">Bytecode Alliance</a> project</strong>
+This repository is a clone of [`bytecodealliance/wasm-tools`](https://github.com/bytecodealliance/wasm-tools). It is meant for discussion, prototype specification, and implementation of a proposal to add
+support for named effect handlers.
 
   <p>
     <strong>CLI and Rust libraries for low-level manipulation of WebAssembly modules</strong>
