@@ -1515,6 +1515,8 @@ where
         }
     }
 
+    // TODO(ishmis): add handler_name_at or similar
+
     fn func_type_of_cont_type(&self, cont_ty: &ContType) -> &'resources FuncType {
         let func_id = cont_ty.0.as_core_type_id().expect("valid core type id");
         self.resources.sub_type_at_id(func_id).unwrap_func()
@@ -1611,12 +1613,14 @@ where
         &mut self,
         table: ResumeTable,
         type_index: u32, // The type index annotation on the `resume` instruction, which `table` appears on.
+        // TODO(ishmis): add handler_index
     ) -> Result<&'resources FuncType> {
         let cont_ty = self.cont_type_at(type_index)?;
         // ts1 -> ts2
         let old_func_ty = self.func_type_of_cont_type(cont_ty);
         for handle in table.handlers {
             match handle {
+                //TODO(ishmis): Handle::OnNamedLabel
                 Handle::OnLabel { tag, label } => {
                     // ts1' -> ts2'
                     let tag_ty = self.tag_at(tag)?;

@@ -268,6 +268,25 @@ pub(crate) trait InternRecGroup {
                     CompositeInnerType::Func(_) => (),
                     _ => bail!(offset, "non-function type {}", id.index()),
                 }
+            },
+            CompositeInnerType::Handler(t) => {
+                if !features.stack_switching() {
+                    bail!(
+                        offset,
+                        "cannot define continuation type shandled by name when stack switching is disabled",
+                    );
+                }
+                if !features.gc_types() {
+                    bail!(
+                        offset,
+                        "cannot define continuation types handled by name when gc types are disabled",
+                    );
+                    
+                }
+                
+                for vt in t.vals.iter() {
+                    check(vt, ty.shared)?;
+                }
             }
         }
         Ok(())

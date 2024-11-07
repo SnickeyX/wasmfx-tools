@@ -142,6 +142,7 @@ impl TypeData for SubType {
             CompositeInnerType::Array(_) => 2,
             CompositeInnerType::Struct(ty) => 1 + 2 * ty.fields.len() as u32,
             CompositeInnerType::Cont(_) => 1,
+            CompositeInnerType::Handler(_) => 1,
         };
         TypeInfo::core(size)
     }
@@ -943,7 +944,7 @@ impl TypeList {
         return (true, rec_group_id);
     }
 
-    /// Helper for interning a sub type as a rec group; see
+    /// Helper for interning a sub type as a rec group; seei
     /// [`Self::intern_canonical_rec_group`].
     pub fn intern_sub_type(&mut self, sub_ty: SubType, offset: usize) -> CoreTypeId {
         let (_is_new, group_id) =
@@ -1140,9 +1141,10 @@ impl TypeList {
                     Array => matches!(a_ty.inner, CT::Array(_)),
                     Func => matches!(a_ty.inner, CT::Func(_)),
                     Cont => matches!(a_ty.inner, CT::Cont(_)),
+                    Handler => matches!(a_ty.inner, CT::Handler(_)),
                     // Nothing else matches. (Avoid full wildcard matches so
                     // that adding/modifying variants is easier in the future.)
-                    Extern | Exn | I31 | None | NoFunc | NoExtern | NoExn | NoCont => false,
+                    Extern | Exn | I31 | None | NoFunc | NoExtern | NoExn | NoCont | NoHandler => false,
                 }
             }
 
@@ -1155,9 +1157,10 @@ impl TypeList {
                     None => matches!(b_ty.inner, CT::Array(_) | CT::Struct(_)),
                     NoFunc => matches!(b_ty.inner, CT::Func(_)),
                     NoCont => matches!(b_ty.inner, CT::Cont(_)),
+                    NoHandler => matches!(b_ty.inner, CT::Handler(_)),
                     // Nothing else matches. (Avoid full wildcard matches so
                     // that adding/modifying variants is easier in the future.)
-                    Cont | Func | Extern | Exn | Any | Eq | Array | I31 | Struct | NoExtern
+                    Cont | Handler | Func | Extern | Exn | Any | Eq | Array | I31 | Struct | NoExtern
                     | NoExn => false,
                 }
             }
@@ -1221,6 +1224,7 @@ impl TypeList {
                         HeapType::Abstract { shared, ty: Any }
                     }
                     CompositeInnerType::Cont(_) => HeapType::Abstract { shared, ty: Cont },
+                    CompositeInnerType::Handler(_) => HeapType::Abstract { shared, ty: Handler },
                 }
             }
             HeapType::Abstract { shared, ty } => {
@@ -1230,6 +1234,7 @@ impl TypeList {
                     Any | Eq | Struct | Array | I31 | None => Any,
                     Exn | NoExn => Exn,
                     Cont | NoCont => Cont,
+                    Handler | NoHandler => Handler,
                 };
                 HeapType::Abstract { shared, ty }
             }
