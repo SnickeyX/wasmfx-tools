@@ -14,7 +14,7 @@
  */
 
 use crate::{
-    BinaryReader, BinaryReaderError, BlockType, CompositeInnerType, ContType, FrameKind, FuncType,
+    BinaryReader, BinaryReaderError, BlockType, CompositeInnerType, ContType, FrameKind, FuncType, 
     Operator, RefType, Result, SubType,
 };
 
@@ -55,6 +55,10 @@ pub trait ModuleArity {
             CompositeInnerType::Cont(c) => {
                 let f = self.func_type_of_cont_type(c)?;
                 Some((f.params().len() as u32, f.results().len() as u32))
+            }
+            CompositeInnerType::Handler(hc) => {
+                // ishmis: find out if this is correct
+                Some((hc.vals.len() as u32, hc.vals.len() as u32))
             }
         }
     }

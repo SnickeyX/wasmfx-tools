@@ -543,6 +543,11 @@ impl SubType {
             CompositeInnerType::Cont(ty) => {
                 ty.remap_indices(f)?;
             }
+            CompositeInnerType::Handler(ty) => {
+                for val in ty.vals.iter_mut() {
+                    val.remap_indices(f)?
+                }
+            }
         }
         Ok(())
     }
@@ -569,6 +574,8 @@ pub enum CompositeInnerType {
     Struct(StructType),
     /// The type is for a continuation.
     Cont(ContType),
+    /// The type is for a named handler.
+    Handler(HandlerType),
 }
 
 impl fmt::Display for CompositeType {
@@ -582,6 +589,7 @@ impl fmt::Display for CompositeType {
             Func(_) => write!(f, "(func ...)"),
             Struct(_) => write!(f, "(struct ...)"),
             Cont(_) => write!(f, "(cont ...)"),
+            Handler(_) => write!(f, "(handler ...)"),
         }?;
         if self.shared {
             write!(f, ")")?;
@@ -813,6 +821,12 @@ impl ContType {
         Ok(())
     }
 }
+/// Represents a type of named handler in a WebAssembly module.
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct HandlerType {
+    /// list of values left on stack after calling handler is called
+    pub vals: Vec<ValType>, 
+}
 
 /// Represents the types of values in a WebAssembly module.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -961,8 +975,8 @@ impl ValType {
 //   0111 = cont
 //   0110 = nocont
 // 
-//   1010 = nhcont
-//   1011 = nonhcont
+//   1010 = handler
+//   1011 = nohandler
 //
 //   0001 = exn
 //
@@ -1051,6 +1065,8 @@ impl RefType {
     const NONE_ABSTYPE: u32 = 0b0000 << 17;
     const CONT_ABSTYPE: u32 = 0b0111 << 17;
     const NOCONT_ABSTYPE: u32 = 0b0110 << 17;
+    const HCONT_ABSTYPE: u32 = 0b1010 << 17;  
+    const NOHCONT_ABSTYPE: u32 = 0b1011 << 17;  
 
     // The `index` is valid only when `concrete == 1`.
     const INDEX_MASK: u32 = (1 << 22) - 1;
@@ -1147,6 +1163,13 @@ impl RefType {
 
     /// A non-nullable reference to a nocont object aka `(ref nocont)`.
     pub const NOCONT: Self = RefType::from_u32(Self::NOCONT_ABSTYPE);
+    
+    /// A non-nullable reference to a cont object aka `(ref hcont)`.
+    /// TODO(ishmis): CHANGE THIS!!
+    pub const HCONT: Self = RefType::from_u32(Self::HCONT_ABSTYPE);
+
+    /// A non-nullable reference to a nohcont object aka `(ref nohcont)`.
+    pub const NOHCONT: Self = RefType::from_u32(Self::NOHCONT_ABSTYPE);
 
     const fn can_represent_type_index(index: u32) -> bool {
         index & Self::INDEX_MASK == index
@@ -1190,7 +1213,9 @@ impl RefType {
                         | Self::EXN_ABSTYPE
                         | Self::NOEXN_ABSTYPE
                         | Self::CONT_ABSTYPE
-                        | Self::NOCONT_ABSTYPE  // TODO(ishmis): nhcont and nonhcont
+                        | Self::NOCONT_ABSTYPE  
+                        | Self::HCONT_ABSTYPE
+                        | Self::NOHCONT_ABSTYPE         
                 )
         );
 
@@ -1235,6 +1260,8 @@ impl RefType {
                     NoExn => Some(Self::from_u32(base32 | Self::NOEXN_ABSTYPE)),
                     Cont => Some(Self::from_u32(base32 | Self::CONT_ABSTYPE)),
                     NoCont => Some(Self::from_u32(base32 | Self::NOCONT_ABSTYPE)),
+                    Handler => Some(Self::from_u32(base32 | Self::HCONT_ABSTYPE)),
+                    NoHandler => Some(Self::from_u32(base32 | Self::NOHCONT_ABSTYPE)),
                 }
             }
         }
@@ -1383,6 +1410,8 @@ impl RefType {
                     (true, true, NoExn) => "(shared nullexnref)",
                     (true, true, Cont) => "(shared contref)",
                     (true, true, NoCont) => "(shared nullcontref)",
+                    (true, true, Handler) => "(shared handler)",
+                    (true, true, NoHandler) => "(shared nullhandler)",
                     // Unshared but nullable.
                     (false, true, Func) => "funcref",
                     (false, true, Extern) => "externref",
@@ -1398,6 +1427,8 @@ impl RefType {
                     (false, true, NoExn) => "nullexnref",
                     (false, true, Cont) => "contref",
                     (false, true, NoCont) => "nullcontref",
+                    (false, true, Handler) => "handlerref",
+                    (false, true, NoHandler) => "nullhandlerref",
                     // Shared but not nullable.
                     (true, false, Func) => "(ref (shared func))",
                     (true, false, Extern) => "(ref (shared extern))",
@@ -1413,7 +1444,8 @@ impl RefType {
                     (true, false, NoExn) => "(ref (shared noexn))",
                     (true, false, Cont) => "(ref (shared cont))",
                     (true, false, NoCont) => "(ref (shared nocont))",
-                    // TODO(ishmis): nhcont and nonhcont
+                    (true, false, Handler) => "(ref (shared handler))",
+                    (true, false, NoHandler) => "(ref (shared nohandler))",
                     // Neither shared nor nullable.
                     (false, false, Func) => "(ref func)",
                     (false, false, Extern) => "(ref extern)",
@@ -1429,6 +1461,8 @@ impl RefType {
                     (false, false, NoExn) => "(ref noexn)",
                     (false, false, Cont) => "(ref cont)",
                     (false, false, NoCont) => "(ref nocont)",
+                    (false, false, Handler) => "(ref handler)",
+                    (false, false, NoHandler) => "(ref nohandler)",
                 }
             }
             HeapType::Concrete(_) => {
@@ -1563,12 +1597,24 @@ pub enum AbstractHeapType {
     /// Introduced in the stack-switching proposal.
     Cont,
 
-    /// The abstract `noexn` heap type.
+    /// The abstract `nocont` heap type.
     ///
     /// The common subtype (a.k.a. bottom) of all continuation types.
     ///
     /// Introduced in the stack-switching proposal.
     NoCont,
+    
+    /// The abstract `handler` for named handlers heap type.
+    ///
+    /// Introduced in the stack-switching proposal.
+    Handler,
+
+    /// The abstract `noHCont` heap type.
+    ///
+    /// The common subtype (a.k.a. bottom) of all continuation types for named handlers.
+    ///
+    /// Introduced in the stack-switching proposal.
+    NoHandler,
 }
 
 impl AbstractHeapType {
@@ -1592,8 +1638,11 @@ impl AbstractHeapType {
             (true, NoExn) => "nullexn",
             (false, NoExn) => "noexn",
             (_, Cont) => "cont",
+            (_, Handler) => "handler",
             (true, NoCont) => "nullcont",
             (false, NoCont) => "nocont",
+            (true, NoHandler) => "nullhandler",
+            (false, NoHandler) => "nohandler",
         }
     }
 
@@ -1610,12 +1659,13 @@ impl AbstractHeapType {
             (None, I31 | Array | Struct) => true,
             (NoExn, Exn) => true,
             (NoCont, Cont) => true,
+            (NoHandler, Handler) => true,
             // Nothing else matches. (Avoid full wildcard matches so
             // that adding/modifying variants is easier in the
             // future.)
             (
-                Func | Extern | Exn | Any | Eq | Array | I31 | Struct | Cont | None | NoFunc
-                | NoExtern | NoExn | NoCont,
+                Func | Extern | Exn | Any | Eq | Array | I31 | Struct | Cont | Handler |  None | NoFunc
+                | NoExtern | NoExn | NoCont | NoHandler,
                 _,
             ) => false,
         }
@@ -1687,8 +1737,8 @@ impl<'a> FromReader<'a> for ValType {
         // | 0x4F    | -49     | sub final $t | gc proposal, prefix byte     |
         // | 0x4E    | -50     | rec $t       | gc proposal, prefix byte     |
         // | 0x40    | -64     | ε            | empty block type             |
-        // | 0xBF7F  | -65     | nhcont $n $t | named handler                | 
-        // | 0xBE7F  | -66     | nonhcont     | named handler                |
+        // | 0xBF7F  | -65     | handler $t   | named handler                | 
+        // | 0xBE7F  | -66     | nohandler    | named handler                |
         //
         // Note that not all of these encodings are parsed here, for example
         // 0x78 as the encoding for `i8` is parsed only in `FieldType`. The
@@ -1973,6 +2023,9 @@ impl<'a> TypeSectionReader<'a> {
                 }
                 CompositeInnerType::Cont(_) => {
                     bail!(offset, "stack switching proposal not supported");
+                }, 
+                CompositeInnerType::Handler(_) => {
+                    bail!(offset, "named handlers proposal not supported");
                 }
             }
         })
@@ -2000,7 +2053,8 @@ fn read_composite_type(
         0x60 => CompositeInnerType::Func(reader.read()?),
         0x5e => CompositeInnerType::Array(reader.read()?),
         0x5f => CompositeInnerType::Struct(reader.read()?),
-        0x5d => CompositeInnerType::Cont(reader.read()?),
+        0x5d => CompositeInnerType::Cont(reader.read()?), 
+        // TODO(ishmis): add Handler!
         x => return reader.invalid_leading_byte(x, "type"),
     };
     Ok(CompositeType { shared, inner })
@@ -2137,3 +2191,6 @@ impl<'a> FromReader<'a> for ContType {
         Ok(ContType(idx))
     }
 }
+
+// TODO(ishmis): impl FromReader for Handler!
+// test with specfxc ref interp: ./wasm -d -o my_module.wasm my_module.wast
