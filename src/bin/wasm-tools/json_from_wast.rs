@@ -566,6 +566,10 @@ fn null_heap_ty(ty: HeapType<'_>) -> Result<json::Const> {
                     value: Some("null".to_string()),
                 },
                 NoCont => json::Const::NullContRef,
+                Handler => json::Const::HandlerRef {
+                    value: Some("null".to_string()),
+                },
+                NoHandler => json::Const::NullHandlerRef,
             }
         }
         _ => bail!("unsupported heap type found in `ref.null`"),
@@ -757,8 +761,15 @@ mod json {
             #[serde(skip_serializing_if = "Option::is_none")]
             value: Option<String>,
         },
-
+        
         NullContRef,
+        
+        HandlerRef {
+            #[serde(skip_serializing_if = "Option::is_none")]
+            value: Option<String>,
+        },
+
+        NullHandlerRef,
 
         // any null reference, type doesn't matter
         RefNull,

@@ -769,6 +769,10 @@ macro_rules! _for_each_operator_group {
                 Resume { cont_type_index: u32, resume_table: $crate::ResumeTable } => visit_resume (arity 1 type -> type)
                 ResumeThrow { cont_type_index: u32, tag_index: u32, resume_table: $crate::ResumeTable } => visit_resume_throw (arity 1 tag -> type)
                 Switch { cont_type_index: u32, tag_index: u32 } => visit_switch (arity type -> ~switch)
+                // ishmis: need this for validation
+                HandlerNew { handler_type_index: u32 } => visit_handler_new (arity 1 -> 1)
+                SuspendTo { handler_type_index: u32, tag_index: u32 }  => visit_suspend_to (arity 1 tag -> 1 tag)
+                ResumeWith { named_cont_type_index: u32, resume_table: $crate::ResumeTable }  => visit_resume_with (arity 1 type -> type)
             }
 
             @wide_arithmetic {

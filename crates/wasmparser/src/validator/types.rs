@@ -1144,7 +1144,9 @@ impl TypeList {
                     Handler => matches!(a_ty.inner, CT::Handler(_)),
                     // Nothing else matches. (Avoid full wildcard matches so
                     // that adding/modifying variants is easier in the future.)
-                    Extern | Exn | I31 | None | NoFunc | NoExtern | NoExn | NoCont | NoHandler => false,
+                    Extern | Exn | I31 | None | NoFunc | NoExtern | NoExn | NoCont | NoHandler => {
+                        false
+                    }
                 }
             }
 
@@ -1160,8 +1162,8 @@ impl TypeList {
                     NoHandler => matches!(b_ty.inner, CT::Handler(_)),
                     // Nothing else matches. (Avoid full wildcard matches so
                     // that adding/modifying variants is easier in the future.)
-                    Cont | Handler | Func | Extern | Exn | Any | Eq | Array | I31 | Struct | NoExtern
-                    | NoExn => false,
+                    Cont | Handler | Func | Extern | Exn | Any | Eq | Array | I31 | Struct
+                    | NoExtern | NoExn => false,
                 }
             }
 
@@ -1224,7 +1226,10 @@ impl TypeList {
                         HeapType::Abstract { shared, ty: Any }
                     }
                     CompositeInnerType::Cont(_) => HeapType::Abstract { shared, ty: Cont },
-                    CompositeInnerType::Handler(_) => HeapType::Abstract { shared, ty: Handler },
+                    CompositeInnerType::Handler(_) => HeapType::Abstract {
+                        shared,
+                        ty: Handler,
+                    },
                 }
             }
             HeapType::Abstract { shared, ty } => {

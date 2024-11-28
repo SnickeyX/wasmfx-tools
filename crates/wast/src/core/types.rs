@@ -118,6 +118,8 @@ pub enum AbstractHeapType {
     Exn,
     /// A reference to a wasm continuation. This is part of the stack switching proposal.
     Cont,
+    /// A reference to a wasm named handler. This is part of the ??? proposal.
+    Handler,
     /// A reference to any reference value: anyref. This is part of the GC
     /// proposal.
     Any,
@@ -140,6 +142,8 @@ pub enum AbstractHeapType {
     NoExn,
     /// The bottom type of the contref hierarchy. Part of the stack switching proposal.
     NoCont,
+    /// The bottom type of the handlerref hierarchy. This is part of the ??? proposal.
+    NoHandler,
 }
 
 impl<'a> Parse<'a> for AbstractHeapType {
@@ -157,6 +161,9 @@ impl<'a> Parse<'a> for AbstractHeapType {
         } else if l.peek::<kw::cont>()? {
             parser.parse::<kw::cont>()?;
             Ok(AbstractHeapType::Cont)
+        } else if l.peek::<kw::handler>()? {
+            parser.parse::<kw::handler>()?;
+            Ok(AbstractHeapType::Handler)
         } else if l.peek::<kw::r#any>()? {
             parser.parse::<kw::r#any>()?;
             Ok(AbstractHeapType::Any)
@@ -184,6 +191,9 @@ impl<'a> Parse<'a> for AbstractHeapType {
         } else if l.peek::<kw::nocont>()? {
             parser.parse::<kw::nocont>()?;
             Ok(AbstractHeapType::NoCont)
+        } else if l.peek::<kw::nohandler>()? {
+            parser.parse::<kw::nohandler>()?;
+            Ok(AbstractHeapType::NoHandler)
         } else if l.peek::<kw::none>()? {
             parser.parse::<kw::none>()?;
             Ok(AbstractHeapType::None)
@@ -199,6 +209,7 @@ impl<'a> Peek for AbstractHeapType {
             || kw::r#extern::peek(cursor)?
             || kw::exn::peek(cursor)?
             || kw::cont::peek(cursor)?
+            || kw::handler::peek(cursor)?
             || kw::any::peek(cursor)?
             || kw::eq::peek(cursor)?
             || kw::r#struct::peek(cursor)?
@@ -208,6 +219,7 @@ impl<'a> Peek for AbstractHeapType {
             || kw::noextern::peek(cursor)?
             || kw::noexn::peek(cursor)?
             || kw::nocont::peek(cursor)?
+            || kw::nohandler::peek(cursor)?
             || kw::none::peek(cursor)?)
     }
     fn display() -> &'static str {
@@ -264,6 +276,17 @@ impl<'a> RefType<'a> {
             heap: HeapType::Abstract {
                 shared: false,
                 ty: AbstractHeapType::Cont,
+            },
+        }
+    }
+
+    /// An `handler` as an abbreviation for `(ref null handler)`.
+    pub fn handler() -> Self {
+        RefType {
+            nullable: true,
+            heap: HeapType::Abstract {
+                shared: false,
+                ty: AbstractHeapType::Handler,
             },
         }
     }
@@ -378,6 +401,17 @@ impl<'a> RefType<'a> {
         }
     }
 
+    /// A `nullhandlerref` as an abbreviation for `(ref null nohandler)`.
+    pub fn nullhandlerref() -> Self {
+        RefType {
+            nullable: true,
+            heap: HeapType::Abstract {
+                shared: false,
+                ty: AbstractHeapType::NoHandler,
+            },
+        }
+    }
+
     /// Make the reference type a `shared` one.
     ///
     /// Note that this is not possible for concrete references (e.g., `(ref
@@ -404,11 +438,13 @@ impl<'a> RefType<'a> {
             || l.peek::<kw::arrayref>()?
             || l.peek::<kw::i31ref>()?
             || l.peek::<kw::contref>()?
+            || l.peek::<kw::handlerref>()?
             || l.peek::<kw::nullfuncref>()?
             || l.peek::<kw::nullexternref>()?
             || l.peek::<kw::nullexnref>()?
             || l.peek::<kw::nullref>()?
-            || l.peek::<kw::nullcontref>()?)
+            || l.peek::<kw::nullcontref>()?
+            || l.peek::<kw::nullhandlerref>()?)
     }
 
     /// Helper for parsing shorthand forms of reference types; e.g., `funcref`.
@@ -425,6 +461,9 @@ impl<'a> RefType<'a> {
         } else if l.peek::<kw::contref>()? {
             parser.parse::<kw::contref>()?;
             Ok(RefType::cont())
+        } else if l.peek::<kw::handlerref>()? {
+            parser.parse::<kw::handlerref>()?;
+            Ok(RefType::handler())
         } else if l.peek::<kw::anyref>()? {
             parser.parse::<kw::anyref>()?;
             Ok(RefType::any())
@@ -452,6 +491,9 @@ impl<'a> RefType<'a> {
         } else if l.peek::<kw::nullcontref>()? {
             parser.parse::<kw::nullcontref>()?;
             Ok(RefType::nullcontref())
+        } else if l.peek::<kw::nullhandlerref>()? {
+            parser.parse::<kw::nullhandlerref>()?;
+            Ok(RefType::nullhandlerref())
         } else if l.peek::<kw::nullref>()? {
             parser.parse::<kw::nullref>()?;
             Ok(RefType::nullref())
@@ -510,11 +552,13 @@ impl<'a> Peek for RefType<'a> {
             || kw::arrayref::peek(cursor)?
             || kw::i31ref::peek(cursor)?
             || kw::contref::peek(cursor)?
+            || kw::handlerref::peek(cursor)?
             || kw::nullfuncref::peek(cursor)?
             || kw::nullexternref::peek(cursor)?
             || kw::nullexnref::peek(cursor)?
             || kw::nullref::peek(cursor)?
             || kw::nullcontref::peek(cursor)?
+            || kw::nullhandlerref::peek(cursor)?
             || (LParen::peek(cursor)? && kw::shared::peek2(cursor)?)
             || (LParen::peek(cursor)? && kw::r#ref::peek2(cursor)?))
     }
@@ -894,6 +938,29 @@ impl<'a> Parse<'a> for ContType<'a> {
     }
 }
 
+/// A handler type
+#[derive(Clone, Debug)]
+pub struct HandlerType<'a> {
+    /// Types of values present on stack after handler is used
+    pub vals: Vec<ValType<'a>>,
+}
+
+impl<'a> Parse<'a> for HandlerType<'a> {
+    fn parse(parser: Parser<'a>) -> Result<Self> {
+        let mut ret = HandlerType { vals: Vec::new() };
+        while !parser.is_empty() {
+            parser.parens(|parser| {
+                while parser.peek::<ValType>()? {
+                    let field = ValType::parse(parser);
+                    ret.vals.push(field?);
+                }
+                Ok(())
+            })?;
+        }
+        Ok(ret)
+    }
+}
+
 /// The type of an exported item from a module or instance.
 #[derive(Debug, Clone)]
 pub struct ExportType<'a> {
@@ -925,6 +992,8 @@ pub enum InnerTypeKind<'a> {
     Array(ArrayType<'a>),
     /// A continuation type definition.
     Cont(ContType<'a>),
+    /// A handler type definition.
+    Handler(HandlerType<'a>),
 }
 
 impl<'a> Parse<'a> for InnerTypeKind<'a> {
@@ -942,6 +1011,9 @@ impl<'a> Parse<'a> for InnerTypeKind<'a> {
         } else if l.peek::<kw::cont>()? {
             parser.parse::<kw::cont>()?;
             Ok(InnerTypeKind::Cont(parser.parse()?))
+        } else if l.peek::<kw::handler>()? {
+            parser.parse::<kw::handler>()?;
+            Ok(InnerTypeKind::Handler(parser.parse()?))
         } else {
             Err(l.error())
         }

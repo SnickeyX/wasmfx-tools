@@ -14,7 +14,7 @@
  */
 
 use crate::{
-    BinaryReader, BinaryReaderError, BlockType, CompositeInnerType, ContType, FrameKind, FuncType, 
+    BinaryReader, BinaryReaderError, BlockType, CompositeInnerType, ContType, FrameKind, FuncType,
     Operator, RefType, Result, SubType,
 };
 
@@ -131,9 +131,9 @@ macro_rules! operator_arity {
 	$self.sub_type_arity($self.sub_type_at($self.type_index_of_function($func_index)?)?)
     }};
 
-    (count $self:ident { $type_index:ident: $($_:tt)* } type) => {{
-	operator_arity!(type_index $type_index);
-	$self.sub_type_arity($self.sub_type_at($type_index)?)
+    (count $self:ident { $type_index:ident: $($_:tt)* } type) => {{ let (a, b) = operator_arity!(type_index $type_index);
+	let (c, d) = $self.sub_type_arity($self.sub_type_at($type_index)?)?;
+    Some((a as i32 + c as i32, b as i32 + d as i32)) 
     }};
 
     (count $self:ident { $type_index:ident: $($_:tt)* } switch) => {{
@@ -209,11 +209,12 @@ macro_rules! operator_arity {
 
     (tag_index tag_index $($_:tt)*) => {};
     (func_index function_index $($_:tt)*) => {};
-    (type_index type_index $($_:tt)*) => {};
-    (type_index struct_type_index $($_:tt)*) => {};
-    (type_index argument_index $($_:tt)*) => {};
-    (type_index result_index $($_:tt)*) => {};
-    (type_index cont_type_index $($_:tt)*) => {};
+    (type_index type_index $($_:tt)*) => {(0, 0)};
+    (type_index struct_type_index $($_:tt)*) => {(0, 0)};
+    (type_index argument_index $($_:tt)*) => {(0, 0)};
+    (type_index result_index $($_:tt)*) => {(0, 0)};
+    (type_index cont_type_index $($_:tt)*) => {(0, 0)};
+    (type_index named_cont_type_index $($_:tt)*) => {(-1,0)};
     (size_value array_size $($_:tt)*) => {};
     (depth relative_depth $($_:tt)*) => {};
     (blockty blockty $($_:tt)*) => {};

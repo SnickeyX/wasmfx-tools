@@ -1,0 +1,21 @@
+{
+  "source_filename": "tests/local/stack-switching/named-handler-temp.wast",
+  "commands": [
+    {
+      "type": "module",
+      "line": 3,
+      "filename": "named-handler-temp.0.wasm",
+      "module_type": "binary"
+    },
+    {
+      "type": "assert_return",
+      "line": 30,
+      "action": {
+        "type": "invoke",
+        "field": "handled_proper",
+        "args": []
+      },
+      "expected": []
+    }
+  ]
+}
