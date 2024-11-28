@@ -136,6 +136,13 @@ pub trait Reencode {
         utils::cont_type(self, cont_ty)
     }
 
+    fn handler_type(
+        &mut self,
+        handler_ty: wasmparser::HandlerType,
+    ) -> Result<crate::HandlerType, Error<Self::Error>> {
+        utils::handler_type(self, handler_ty)
+    }
+
     fn global_type(
         &mut self,
         global_ty: wasmparser::GlobalType,
@@ -1032,6 +1039,8 @@ pub mod utils {
             NoExn => crate::AbstractHeapType::NoExn,
             Cont => crate::AbstractHeapType::Cont,
             NoCont => crate::AbstractHeapType::NoCont,
+            Handler => crate::AbstractHeapType::Handler,
+            NoHandler => crate::AbstractHeapType::NoHandler,
         }
     }
 
@@ -1097,6 +1106,9 @@ pub mod utils {
             }
             wasmparser::CompositeInnerType::Cont(c) => {
                 crate::CompositeInnerType::Cont(reencoder.cont_type(c)?)
+            }
+            wasmparser::CompositeInnerType::Handler(h) => {
+                crate::CompositeInnerType::Handler(reencoder.handler_type(h)?)
             }
         };
         Ok(crate::CompositeType {
@@ -1167,6 +1179,17 @@ pub mod utils {
         Ok(crate::ContType(
             reencoder.type_index_unpacked(cont_ty.0.unpack())?,
         ))
+    }
+
+    pub fn handler_type<T: ?Sized + Reencode>(
+        reencoder: &mut T,
+        handler_ty: wasmparser::HandlerType,
+    ) -> Result<crate::HandlerType, Error<T::Error>> {
+        let mut buf = Vec::with_capacity(handler_ty.vals.len());
+        for v in handler_ty.vals.iter().copied() {
+            buf.push(reencoder.val_type(v)?);
+        }
+        Ok(crate::HandlerType { vals: buf })
     }
 
     pub fn val_type<T: ?Sized + Reencode>(

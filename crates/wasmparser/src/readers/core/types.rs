@@ -15,8 +15,8 @@
 
 use crate::binary_reader::BinaryReaderErrorKind;
 use crate::limits::{
-    MAX_WASM_FUNCTION_PARAMS, MAX_WASM_FUNCTION_RETURNS, MAX_WASM_STRUCT_FIELDS,
-    MAX_WASM_SUPERTYPES, MAX_WASM_TYPES,
+    MAX_WASM_FUNCTION_PARAMS, MAX_WASM_FUNCTION_RETURNS, MAX_WASM_HANDLER_VALUES,
+    MAX_WASM_STRUCT_FIELDS, MAX_WASM_SUPERTYPES, MAX_WASM_TYPES,
 };
 use crate::prelude::*;
 #[cfg(feature = "validate")]
@@ -543,6 +543,11 @@ impl SubType {
             CompositeInnerType::Cont(ty) => {
                 ty.remap_indices(f)?;
             }
+            CompositeInnerType::Handler(ty) => {
+                for val in ty.vals.iter_mut() {
+                    val.remap_indices(f)?
+                }
+            }
         }
         Ok(())
     }
@@ -569,6 +574,8 @@ pub enum CompositeInnerType {
     Struct(StructType),
     /// The type is for a continuation.
     Cont(ContType),
+    /// The type is for a named handler.
+    Handler(HandlerType),
 }
 
 impl fmt::Display for CompositeType {
@@ -582,6 +589,7 @@ impl fmt::Display for CompositeType {
             Func(_) => write!(f, "(func ...)"),
             Struct(_) => write!(f, "(struct ...)"),
             Cont(_) => write!(f, "(cont ...)"),
+            Handler(_) => write!(f, "(handler ...)"),
         }?;
         if self.shared {
             write!(f, ")")?;
@@ -620,6 +628,14 @@ impl CompositeType {
         match &self.inner {
             CompositeInnerType::Cont(c) => c,
             _ => panic!("not a cont"),
+        }
+    }
+
+    /// Unwrap a `HandlerType` or panic.
+    pub fn unwrap_handler(&self) -> &HandlerType {
+        match &self.inner {
+            CompositeInnerType::Handler(h) => h,
+            _ => panic!("not a handler"),
         }
     }
 }
@@ -813,6 +829,12 @@ impl ContType {
         Ok(())
     }
 }
+/// Represents a type of named handler in a WebAssembly module.
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct HandlerType {
+    /// list of values left on stack after calling handler is called
+    pub vals: Vec<ValType>,
+}
 
 /// Represents the types of values in a WebAssembly module.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -961,6 +983,9 @@ impl ValType {
 //   0111 = cont
 //   0110 = nocont
 //
+//   1010 = handler
+//   1011 = nohandler
+//
 //   0001 = exn
 //
 //   0000 = none
@@ -1048,6 +1073,8 @@ impl RefType {
     const NONE_ABSTYPE: u32 = 0b0000 << 17;
     const CONT_ABSTYPE: u32 = 0b0111 << 17;
     const NOCONT_ABSTYPE: u32 = 0b0110 << 17;
+    const HANDLER_ABSTYPE: u32 = 0b1010 << 17;
+    const NOHANDLER_ABSTYPE: u32 = 0b1011 << 17;
 
     // The `index` is valid only when `concrete == 1`.
     const INDEX_MASK: u32 = (1 << 22) - 1;
@@ -1103,6 +1130,14 @@ impl RefType {
     /// `nullcontref`.
     pub const NULLCONTREF: Self = RefType::NOCONT.nullable();
 
+    /// A nullable reference to a cont object aka `(ref null handler)` aka
+    /// `contref`.
+    pub const HANDLERREF: Self = RefType::HANDLER.nullable();
+
+    /// A nullable reference to a nocont object aka `(ref null nohandler)` aka
+    /// `nullhandlerref`.
+    pub const NULLHANDLERREF: Self = RefType::NOHANDLER.nullable();
+
     /// A non-nullable untyped function reference aka `(ref func)`.
     pub const FUNC: Self = RefType::from_u32(Self::FUNC_ABSTYPE);
 
@@ -1144,6 +1179,12 @@ impl RefType {
 
     /// A non-nullable reference to a nocont object aka `(ref nocont)`.
     pub const NOCONT: Self = RefType::from_u32(Self::NOCONT_ABSTYPE);
+
+    /// A non-nullable reference to a handler object aka `(ref handler)`.
+    pub const HANDLER: Self = RefType::from_u32(Self::HANDLER_ABSTYPE);
+
+    /// A non-nullable reference to a nohandler object aka `(ref nohandler)`.
+    pub const NOHANDLER: Self = RefType::from_u32(Self::NOHANDLER_ABSTYPE);
 
     const fn can_represent_type_index(index: u32) -> bool {
         index & Self::INDEX_MASK == index
@@ -1188,6 +1229,8 @@ impl RefType {
                         | Self::NOEXN_ABSTYPE
                         | Self::CONT_ABSTYPE
                         | Self::NOCONT_ABSTYPE
+                        | Self::HANDLER_ABSTYPE
+                        | Self::NOHANDLER_ABSTYPE
                 )
         );
 
@@ -1232,6 +1275,8 @@ impl RefType {
                     NoExn => Some(Self::from_u32(base32 | Self::NOEXN_ABSTYPE)),
                     Cont => Some(Self::from_u32(base32 | Self::CONT_ABSTYPE)),
                     NoCont => Some(Self::from_u32(base32 | Self::NOCONT_ABSTYPE)),
+                    Handler => Some(Self::from_u32(base32 | Self::HANDLER_ABSTYPE)),
+                    NoHandler => Some(Self::from_u32(base32 | Self::NOHANDLER_ABSTYPE)),
                 }
             }
         }
@@ -1301,6 +1346,12 @@ impl RefType {
     /// null cont)` aka `contref`?
     pub const fn is_cont_ref(&self) -> bool {
         !self.is_concrete_type_ref() && self.abstype() == Self::CONT_ABSTYPE
+    }
+
+    /// Is this the abstract untyped handler reference type aka `(ref
+    /// null handler)` aka `handlerref`?
+    pub const fn is_handler_ref(&self) -> bool {
+        !self.is_concrete_type_ref() && self.abstype() == Self::HANDLER_ABSTYPE
     }
 
     /// Is this ref type nullable?
@@ -1380,6 +1431,8 @@ impl RefType {
                     (true, true, NoExn) => "(shared nullexnref)",
                     (true, true, Cont) => "(shared contref)",
                     (true, true, NoCont) => "(shared nullcontref)",
+                    (true, true, Handler) => "(shared handler)",
+                    (true, true, NoHandler) => "(shared nullhandler)",
                     // Unshared but nullable.
                     (false, true, Func) => "funcref",
                     (false, true, Extern) => "externref",
@@ -1395,6 +1448,8 @@ impl RefType {
                     (false, true, NoExn) => "nullexnref",
                     (false, true, Cont) => "contref",
                     (false, true, NoCont) => "nullcontref",
+                    (false, true, Handler) => "handlerref",
+                    (false, true, NoHandler) => "nullhandlerref",
                     // Shared but not nullable.
                     (true, false, Func) => "(ref (shared func))",
                     (true, false, Extern) => "(ref (shared extern))",
@@ -1410,6 +1465,8 @@ impl RefType {
                     (true, false, NoExn) => "(ref (shared noexn))",
                     (true, false, Cont) => "(ref (shared cont))",
                     (true, false, NoCont) => "(ref (shared nocont))",
+                    (true, false, Handler) => "(ref (shared handler))",
+                    (true, false, NoHandler) => "(ref (shared nohandler))",
                     // Neither shared nor nullable.
                     (false, false, Func) => "(ref func)",
                     (false, false, Extern) => "(ref extern)",
@@ -1425,6 +1482,8 @@ impl RefType {
                     (false, false, NoExn) => "(ref noexn)",
                     (false, false, Cont) => "(ref cont)",
                     (false, false, NoCont) => "(ref nocont)",
+                    (false, false, Handler) => "(ref handler)",
+                    (false, false, NoHandler) => "(ref nohandler)",
                 }
             }
             HeapType::Concrete(_) => {
@@ -1559,12 +1618,24 @@ pub enum AbstractHeapType {
     /// Introduced in the stack-switching proposal.
     Cont,
 
-    /// The abstract `noexn` heap type.
+    /// The abstract `nocont` heap type.
     ///
     /// The common subtype (a.k.a. bottom) of all continuation types.
     ///
     /// Introduced in the stack-switching proposal.
     NoCont,
+
+    /// The abstract `handler` for named handlers heap type.
+    ///
+    /// Introduced in the [tbd] proposal.
+    Handler,
+
+    /// The abstract `nohandler` heap type.
+    ///
+    /// The common subtype (a.k.a. bottom) of all named handlers.
+    ///
+    /// Introduced in the [tbd] proposal.
+    NoHandler,
 }
 
 impl AbstractHeapType {
@@ -1588,8 +1659,11 @@ impl AbstractHeapType {
             (true, NoExn) => "nullexn",
             (false, NoExn) => "noexn",
             (_, Cont) => "cont",
+            (_, Handler) => "handler",
             (true, NoCont) => "nullcont",
             (false, NoCont) => "nocont",
+            (true, NoHandler) => "nullhandler",
+            (false, NoHandler) => "nohandler",
         }
     }
 
@@ -1606,12 +1680,13 @@ impl AbstractHeapType {
             (None, I31 | Array | Struct) => true,
             (NoExn, Exn) => true,
             (NoCont, Cont) => true,
+            (NoHandler, Handler) => true,
             // Nothing else matches. (Avoid full wildcard matches so
             // that adding/modifying variants is easier in the
             // future.)
             (
-                Func | Extern | Exn | Any | Eq | Array | I31 | Struct | Cont | None | NoFunc
-                | NoExtern | NoExn | NoCont,
+                Func | Extern | Exn | Any | Eq | Array | I31 | Struct | Cont | Handler | None
+                | NoFunc | NoExtern | NoExn | NoCont | NoHandler,
                 _,
             ) => false,
         }
@@ -1683,6 +1758,9 @@ impl<'a> FromReader<'a> for ValType {
         // | 0x4F    | -49     | sub final $t | gc proposal, prefix byte     |
         // | 0x4E    | -50     | rec $t       | gc proposal, prefix byte     |
         // | 0x40    | -64     | ε            | empty block type             |
+        // | 0xBF7F  | -65     | handler $t   | named handler proposal       |
+        // | 0xBE7F  | -66     | nohandler    | named handler proposal       |
+        // | 0xBD7F  | -67     | handlerref   | named handler proposal       |
         //
         // Note that not all of these encodings are parsed here, for example
         // 0x78 as the encoding for `i8` is parsed only in `FieldType`. The
@@ -1803,27 +1881,43 @@ impl<'a> FromReader<'a> for HeapType {
 impl<'a> FromReader<'a> for AbstractHeapType {
     fn from_reader(reader: &mut BinaryReader<'a>) -> Result<Self> {
         use AbstractHeapType::*;
-        match reader.read_u8()? {
-            0x70 => Ok(Func),
-            0x6F => Ok(Extern),
-            0x6E => Ok(Any),
-            0x71 => Ok(None),
-            0x72 => Ok(NoExtern),
-            0x73 => Ok(NoFunc),
-            0x6D => Ok(Eq),
-            0x6B => Ok(Struct),
-            0x6A => Ok(Array),
-            0x6C => Ok(I31),
-            0x69 => Ok(Exn),
-            0x74 => Ok(NoExn),
-            0x68 => Ok(Cont),
-            0x75 => Ok(NoCont),
-            _ => {
-                return Err(BinaryReaderError::invalid(
-                    "invalid abstract heap type",
-                    reader.original_position() - 1,
-                ))
+        let orig_pos = reader.original_position();
+        match reader.peek()? {
+            0xBD | 0xBE => {
+                let encoding = reader.read_u16()?;
+                match encoding {
+                    0xBF7F => Ok(Handler),
+                    0xBE7F => Ok(NoHandler),
+                    _ => {
+                        return Err(BinaryReaderError::invalid(
+                            "invalid abstract heap type",
+                            orig_pos - 2,
+                        ))
+                    }
+                }
             }
+            _ => match reader.read_u8()? {
+                0x70 => Ok(Func),
+                0x6F => Ok(Extern),
+                0x6E => Ok(Any),
+                0x71 => Ok(None),
+                0x72 => Ok(NoExtern),
+                0x73 => Ok(NoFunc),
+                0x6D => Ok(Eq),
+                0x6B => Ok(Struct),
+                0x6A => Ok(Array),
+                0x6C => Ok(I31),
+                0x69 => Ok(Exn),
+                0x74 => Ok(NoExn),
+                0x68 => Ok(Cont),
+                0x75 => Ok(NoCont),
+                _ => {
+                    return Err(BinaryReaderError::invalid(
+                        "invalid abstract heap type",
+                        orig_pos - 1,
+                    ))
+                }
+            },
         }
     }
 }
@@ -1968,6 +2062,9 @@ impl<'a> TypeSectionReader<'a> {
                 CompositeInnerType::Cont(_) => {
                     bail!(offset, "stack switching proposal not supported");
                 }
+                CompositeInnerType::Handler(_) => {
+                    bail!(offset, "named handlers proposal not supported");
+                }
             }
         })
     }
@@ -1995,6 +2092,14 @@ fn read_composite_type(
         0x5e => CompositeInnerType::Array(reader.read()?),
         0x5f => CompositeInnerType::Struct(reader.read()?),
         0x5d => CompositeInnerType::Cont(reader.read()?),
+        0xBF => {
+            let low_byte = reader.read_u8()?;
+            if low_byte == 0x7F {
+                CompositeInnerType::Handler(reader.read()?)
+            } else {
+                return reader.invalid_leading_byte(0xBF, "type");
+            }
+        }
         x => return reader.invalid_leading_byte(x, "type"),
     };
     Ok(CompositeType { shared, inner })
@@ -2129,5 +2234,16 @@ impl<'a> FromReader<'a> for ContType {
             )
         })?;
         Ok(ContType(idx))
+    }
+}
+
+// TODO(ishmis): impl FromReader for Handler!
+// test with specfxc ref interp: ./wasm -d -o my_module.wasm my_module.wast
+impl<'a> FromReader<'a> for HandlerType {
+    fn from_reader(reader: &mut BinaryReader<'a>) -> Result<Self> {
+        let values = reader
+            .read_iter(MAX_WASM_HANDLER_VALUES, "handler value types")?
+            .collect::<Result<Vec<_>>>()?;
+        Ok(HandlerType { vals: values })
     }
 }
