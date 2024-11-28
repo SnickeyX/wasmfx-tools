@@ -14,7 +14,7 @@
  */
 
 use crate::{
-    BinaryReader, BinaryReaderError, BlockType, CompositeInnerType, ContType, FrameKind, FuncType, 
+    BinaryReader, BinaryReaderError, BlockType, CompositeInnerType, ContType, FrameKind, FuncType,
     Operator, RefType, Result, SubType,
 };
 

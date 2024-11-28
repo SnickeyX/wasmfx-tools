@@ -444,6 +444,20 @@ impl<'a> BinaryReader<'a> {
         })
     }
 
+    /// Advances the `BinaryReader` four bytes and returns a `u16`.
+    /// # Errors
+    /// If `BinaryReader` has less than two bytes remaining.
+    pub fn read_u16(&mut self) -> Result<u16> {
+        self.ensure_has_bytes(2)?;
+        let word = u16::from_le_bytes(
+            self.buffer[self.position..self.position + 2]
+                .try_into()
+                .unwrap(),
+        );
+        self.position += 2;
+        Ok(word)
+    }
+
     /// Advances the `BinaryReader` four bytes and returns a `u32`.
     /// # Errors
     /// If `BinaryReader` has less than four bytes remaining.

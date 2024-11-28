@@ -41,6 +41,7 @@ pub const MAX_WASM_CATCHES: usize = 10_000;
 pub const MAX_WASM_SUBTYPING_DEPTH: usize = 63;
 pub const MAX_WASM_HANDLERS: usize = 10_000;
 pub const MAX_WASM_TYPE_SIZE: u32 = 1_000_000;
+pub const MAX_WASM_HANDLER_VALUES: usize = 10_000;
 
 pub const DEFAULT_WASM_PAGE_SIZE: u64 = 1 << 16;
 
