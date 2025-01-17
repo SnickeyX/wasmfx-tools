@@ -944,6 +944,8 @@ macro_rules! define_visit {
     };
 
     (mark_live $self:ident $arg:ident type_index) => {$self.ty($arg);};
+    (mark_live $self:ident $arg:ident handler_type_index) => {unimplemented!();};
+    (mark_live $self:ident $arg:ident named_cont_type_index) => {};
     (mark_live $self:ident $arg:ident array_type_index) => {$self.ty($arg);};
     (mark_live $self:ident $arg:ident array_type_index_dst) => {$self.ty($arg);};
     (mark_live $self:ident $arg:ident array_type_index_src) => {$self.ty($arg);};

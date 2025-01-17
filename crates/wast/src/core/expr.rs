@@ -1195,6 +1195,8 @@ instructions! {
         Resume(Resume<'a>)             : [0xe3] : "resume",
         ResumeThrow(ResumeThrow<'a>)   : [0xe4] : "resume_throw",
         Switch(Switch<'a>)             : [0xe5] : "switch",
+        SuspendTo(SuspendTo<'a>)       : [0xe7] : "suspend_to",
+        ResumeWith(Resume<'a>)         : [0xe8] : "resume_with",
 
         // Wide arithmetic proposal
         I64Add128   : [0xfc, 19] : "i64.add128",
@@ -1316,6 +1318,23 @@ impl<'a> Parse<'a> for Switch<'a> {
     fn parse(parser: Parser<'a>) -> Result<Self> {
         Ok(Switch {
             type_index: parser.parse()?,
+            tag_index: parser.parse()?,
+        })
+    }
+}
+
+/// Extra information associated with the suspend_to instruction
+#[derive(Debug, Clone)]
+#[allow(missing_docs)]
+pub struct SuspendTo<'a> {
+    pub handler_type_index: Index<'a>,
+    pub tag_index: Index<'a>,
+}
+
+impl<'a> Parse<'a> for SuspendTo<'a> {
+    fn parse(parser: Parser<'a>) -> Result<Self> {
+        Ok(SuspendTo {
+            handler_type_index: parser.parse()?,
             tag_index: parser.parse()?,
         })
     }

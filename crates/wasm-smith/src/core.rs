@@ -840,6 +840,8 @@ impl Module {
                         add_abstract(&mut choices, &[NoExtern]);
                     }
                     Exn | NoExn | None | NoExtern | NoFunc | Cont | NoCont => {}
+                    Handler => todo!(),
+                    NoHandler => todo!(),
                 }
             }
             HT::Concrete(idx) => {
@@ -975,6 +977,8 @@ impl Module {
                         add_abstract(&mut choices, &[Cont]);
                     }
                     Exn | Any | Func | Extern | Cont => {}
+                    Handler => todo!(),
+                    NoHandler => todo!(),
                 }
             }
             HT::Concrete(mut idx) => {

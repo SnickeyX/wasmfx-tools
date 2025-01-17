@@ -1225,6 +1225,15 @@ pub enum Instruction<'a> {
         cont_type_index: u32,
         tag_index: u32,
     },
+    HandlerNew(u32),
+    SuspendTo {
+        handler_type_index: u32,
+        tag_index: u32,
+    },
+    ResumeWith {
+        named_cont_type_index: u32,
+        resume_table: Cow<'a, [Handle]>,
+    },
 
     // Wide Arithmetic
     I64Add128,
@@ -3764,6 +3773,27 @@ impl Encode for Instruction<'_> {
                 sink.push(0xE5);
                 cont_type_index.encode(sink);
                 tag_index.encode(sink);
+            }
+            Instruction::HandlerNew(type_index) => {
+                sink.push(0xE6);
+                type_index.encode(sink);
+            }
+            // TODO(ishmis): fix these
+            Instruction::SuspendTo {
+                handler_type_index,
+                tag_index,
+            } => {
+                sink.push(0xE7);
+                handler_type_index.encode(sink);
+                tag_index.encode(sink);
+            }
+            Instruction::ResumeWith {
+                named_cont_type_index,
+                ref resume_table,
+            } => {
+                sink.push(0xE8);
+                named_cont_type_index.encode(sink);
+                resume_table.encode(sink);
             }
             Instruction::I64Add128 => {
                 sink.push(0xFC);

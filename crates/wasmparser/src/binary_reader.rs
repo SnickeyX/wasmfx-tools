@@ -1123,6 +1123,9 @@ impl<'a> BinaryReader<'a> {
                 visitor.visit_resume_throw(self.read_var_u32()?, self.read_var_u32()?, self.read()?)
             }
             0xe5 => visitor.visit_switch(self.read_var_u32()?, self.read_var_u32()?),
+            0xe6 => visitor.visit_handler_new(self.read_var_u32()?),
+            0xe7 => visitor.visit_suspend_to(self.read_var_u32()?, self.read_var_u32()?),
+            0xe8 => visitor.visit_resume_with(self.read_var_u32()?, self.read()?),
 
             0xfb => self.visit_0xfb_operator(pos, visitor)?,
             0xfc => self.visit_0xfc_operator(pos, visitor)?,

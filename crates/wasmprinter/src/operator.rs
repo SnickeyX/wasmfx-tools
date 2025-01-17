@@ -322,6 +322,14 @@ impl<'printer, 'state, 'a, 'b> PrintOperator<'printer, 'state, 'a, 'b> {
         self.push_str(" ")?;
         self.printer.print_idx(&self.state.core.type_names, idx)
     }
+    fn handler_type_index(&mut self, idx: u32) -> Result<()> {
+        self.push_str(" ")?;
+        self.printer.print_idx(&self.state.core.type_names, idx)
+    }
+    fn named_cont_type_index(&mut self, idx: u32) -> Result<()> {
+        self.push_str(" ")?;
+        self.printer.print_idx(&self.state.core.type_names, idx)
+    }
 
     fn argument_index(&mut self, idx: u32) -> Result<()> {
         self.cont_type_index(idx)
@@ -1381,6 +1389,9 @@ macro_rules! define_visit {
     (name Resume) => ("resume");
     (name ResumeThrow) => ("resume_throw");
     (name Switch) => ("switch");
+    (name HandlerNew) => ("handler.new");
+    (name SuspendTo) => ("suspend_to");
+    (name ResumeWith) => ("resume_with");
     (name I64Add128) => ("i64.add128");
     (name I64Sub128) => ("i64.sub128");
     (name I64MulWideS) => ("i64.mul_wide_s");

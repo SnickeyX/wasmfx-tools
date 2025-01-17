@@ -35,6 +35,8 @@ pub enum CompositeInnerType {
     Struct(StructType),
     /// The type is for a continuation.
     Cont(ContType),
+    /// The type is for a handler.
+    Handler(HandlerType),
 }
 
 /// Represents a type of a function in a WebAssembly module.
@@ -95,6 +97,13 @@ impl StorageType {
 /// Represents a type of a continuation in a WebAssembly module.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct ContType(pub u32);
+
+/// Represents a type of a handler in a WebAssembly module.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct HandlerType {
+    /// Struct fields.
+    pub vals: Vec<ValType>,
+}
 
 /// The type of a core WebAssembly value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
@@ -465,6 +474,12 @@ pub enum AbstractHeapType {
 
     /// The abstract `nocont` heap type.
     NoCont,
+
+    /// The abstract `handler` for named handlers heap type.
+    Handler,
+
+    /// The abstract `nohandler` heap type.
+    NoHandler,
 }
 
 impl Encode for AbstractHeapType {
@@ -485,6 +500,8 @@ impl Encode for AbstractHeapType {
             NoExn => sink.push(0x74),
             Cont => sink.push(0x68),
             NoCont => sink.push(0x75),
+            Handler => sink.push(0x67),
+            NoHandler => sink.push(0x66),
         }
     }
 }
@@ -640,6 +657,17 @@ impl<'a> CoreTypeEncoder<'a> {
         i64::from(ty.0).encode(self.bytes);
     }
 
+    fn encode_handler<F>(&mut self, vals: F)
+    where
+        F: IntoIterator<Item = ValType>,
+        F::IntoIter: ExactSizeIterator,
+    {
+        let vals = vals.into_iter();
+        self.bytes.push(0x5c);
+        vals.len().encode(self.bytes);
+        vals.for_each(|v| v.encode(self.bytes));
+    }
+
     /// Define an explicit subtype in this type section.
     pub fn subtype(mut self, ty: &SubType) {
         self.encode_subtype(ty)
@@ -673,6 +701,7 @@ impl<'a> CoreTypeEncoder<'a> {
             }
             CompositeInnerType::Struct(ty) => self.encode_struct(ty.fields.iter().cloned()),
             CompositeInnerType::Cont(ty) => self.encode_cont(ty),
+            CompositeInnerType::Handler(ty) => self.encode_handler(ty.vals.iter().cloned()),
         }
     }
 

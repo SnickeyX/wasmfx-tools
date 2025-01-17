@@ -349,6 +349,14 @@ impl From<&ContType<'_>> for wasm_encoder::ContType {
     }
 }
 
+impl From<&HandlerType<'_>> for wasm_encoder::HandlerType {
+    fn from(at: &HandlerType) -> Self {
+        wasm_encoder::HandlerType {
+            vals: at.vals.iter().map(|&f| f.into()).collect(),
+        }
+    }
+}
+
 enum RecOrType<'a> {
     Type(&'a Type<'a>),
     Rec(&'a Rec<'a>),
@@ -381,6 +389,7 @@ impl TypeDef<'_> {
                 InnerTypeKind::Struct(st) => Struct(st.into()),
                 InnerTypeKind::Array(at) => Array(at.into()),
                 InnerTypeKind::Cont(ct) => Cont(ct.into()),
+                InnerTypeKind::Handler(hdl) => Handler(hdl.into()),
             },
             shared: self.shared,
         };
@@ -434,6 +443,8 @@ impl From<HeapType<'_>> for wasm_encoder::HeapType {
                     AbstractHeapType::I31 => I31,
                     AbstractHeapType::Cont => Cont,
                     AbstractHeapType::NoCont => NoCont,
+                    AbstractHeapType::Handler => Handler,
+                    AbstractHeapType::NoHandler => NoHandler,
                 };
                 Self::Abstract { shared, ty }
             }
@@ -1105,7 +1116,10 @@ fn find_names<'a>(
         if let ModuleField::Type(ty) = field {
             let mut field_names = vec![];
             match &ty.def.kind {
-                InnerTypeKind::Func(_) | InnerTypeKind::Array(_) | InnerTypeKind::Cont(_) => {}
+                InnerTypeKind::Func(_)
+                | InnerTypeKind::Array(_)
+                | InnerTypeKind::Cont(_)
+                | InnerTypeKind::Handler(_) => {}
                 InnerTypeKind::Struct(ty_struct) => {
                     for (idx, field) in ty_struct.fields.iter().enumerate() {
                         if let Some(name) = get_name(&field.id, &None) {
@@ -1260,6 +1274,13 @@ impl<'a> Encode for ResumeThrow<'a> {
         self.type_index.encode(dst);
         self.tag_index.encode(dst);
         self.table.encode(dst);
+    }
+}
+
+impl<'a> Encode for SuspendTo<'a> {
+    fn encode(&self, dst: &mut Vec<u8>) {
+        self.handler_type_index.encode(dst);
+        self.tag_index.encode(dst);
     }
 }
 

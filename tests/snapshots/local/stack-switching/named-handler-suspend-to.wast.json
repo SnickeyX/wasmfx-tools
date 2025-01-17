@@ -1,0 +1,12 @@
+{
+  "source_filename": "tests/local/stack-switching/named-handler-suspend-to.wast",
+  "commands": [
+    {
+      "type": "assert_invalid",
+      "line": 2,
+      "filename": "named-handler-suspend-to.0.wasm",
+      "module_type": "binary",
+      "text": "type mismatch"
+    }
+  ]
+}

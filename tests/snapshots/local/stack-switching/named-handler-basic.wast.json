@@ -1,0 +1,26 @@
+{
+  "source_filename": "tests/local/stack-switching/named-handler-basic.wast",
+  "commands": [
+    {
+      "type": "module",
+      "line": 1,
+      "filename": "named-handler-basic.0.wasm",
+      "module_type": "binary"
+    },
+    {
+      "type": "assert_return",
+      "line": 17,
+      "action": {
+        "type": "invoke",
+        "field": "f",
+        "args": []
+      },
+      "expected": [
+        {
+          "type": "i32",
+          "value": "0"
+        }
+      ]
+    }
+  ]
+}

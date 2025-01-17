@@ -864,6 +864,12 @@ impl Printer<'_, '_> {
                 self.end_group()?; // `cont`
                 r
             }
+            CompositeInnerType::Handler(ty) => {
+                self.start_group("handler")?;
+                let r = self.print_handler_type(state, ty)?;
+                self.end_group()?; // `handler`
+                r
+            }
         };
         if ty.shared {
             self.end_group()?; // `shared`
@@ -981,6 +987,18 @@ impl Printer<'_, '_> {
         Ok(0)
     }
 
+    fn print_handler_type(&mut self, state: &State, ty: &HandlerType) -> Result<u32> {
+        let values = NamedLocalPrinter::new("values");
+        self.result.write_str(" ( ")?;
+        for param in ty.vals.iter() {
+            self.print_valtype(state, *param)?;
+            self.result.write_str(" ")?;
+        }
+        self.result.write_str(")")?;
+        values.finish(self)?;
+        Ok(0)
+    }
+
     fn print_sub_type(&mut self, state: &State, ty: &SubType) -> Result<u32> {
         self.result.write_str(" ")?;
         if ty.is_final {
@@ -1069,6 +1087,8 @@ impl Printer<'_, '_> {
                     NoExn => self.print_type_keyword("noexn")?,
                     Cont => self.print_type_keyword("cont")?,
                     NoCont => self.print_type_keyword("nocont")?,
+                    Handler => self.print_type_keyword("handler")?,
+                    NoHandler => self.print_type_keyword("nohandlercd")?,
                 }
                 if shared {
                     self.end_group()?;

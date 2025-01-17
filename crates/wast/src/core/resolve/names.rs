@@ -65,7 +65,10 @@ impl<'a> Resolver<'a> {
                 }
             }
 
-            InnerTypeKind::Array(_) | InnerTypeKind::Func(_) | InnerTypeKind::Cont(_) => {}
+            InnerTypeKind::Array(_)
+            | InnerTypeKind::Func(_)
+            | InnerTypeKind::Cont(_)
+            | InnerTypeKind::Handler(_) => {}
         }
 
         // Record function signatures as we see them to so we can
@@ -672,6 +675,14 @@ impl<'a, 'b> ExprResolver<'a, 'b> {
                 self.resolver.resolve(&mut s.type_index, Ns::Type)?;
                 self.resolver.resolve(&mut s.tag_index, Ns::Tag)?;
             }
+            SuspendTo(ty) => {
+                self.resolver.resolve(&mut ty.handler_type_index, Ns::Type)?;
+                self.resolver.resolve(&mut ty.tag_index, Ns::Tag)?;
+            }
+            ResumeWith(r) => {
+                self.resolver.resolve(&mut r.type_index, Ns::Type)?;
+                self.resolve_resume_table(&mut r.table)?;
+            }
 
             _ => {}
         }
@@ -813,6 +824,12 @@ pub(crate) trait ResolveCoreType<'a> {
             InnerTypeKind::Array(array) => self.resolve_storagetype(&mut array.ty),
             InnerTypeKind::Cont(cont) => {
                 self.resolve_type_name(&mut cont.0)?;
+                Ok(())
+            }
+            InnerTypeKind::Handler(hdl) => {
+                for val in hdl.vals.iter_mut() {
+                    self.resolve_valtype(val)?
+                }
                 Ok(())
             }
         }

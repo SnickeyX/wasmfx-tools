@@ -55,8 +55,10 @@ impl<'a> Expander<'a> {
                     InnerTypeKind::Func(f) => {
                         f.key().insert(self, Index::Id(id));
                     }
-                    InnerTypeKind::Array(_) | InnerTypeKind::Struct(_) | InnerTypeKind::Cont(_) => {
-                    }
+                    InnerTypeKind::Array(_)
+                    | InnerTypeKind::Struct(_)
+                    | InnerTypeKind::Cont(_)
+                    | InnerTypeKind::Handler(_) => {}
                 }
             }
             _ => {}

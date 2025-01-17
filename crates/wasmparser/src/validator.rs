@@ -330,6 +330,16 @@ impl WasmFeatures {
                             Err("continuation refs not supported without the stack switching feature")
                         }
                     }
+                    
+                    
+                    // These types were added in my diss
+                    (Handler | NoHandler, _) => {
+                        if self.stack_switching() {
+                            Ok(())
+                        } else {
+                            Err("named continuation refs not supported without the stack switching feature")
+                        }
+                    }
                 }
             }
         }

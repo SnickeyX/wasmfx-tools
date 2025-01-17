@@ -18,6 +18,8 @@ use crate::{
     StorageType, StructType, SubType, ValType,
 };
 
+use super::HandlerType;
+
 /// Wasm type matching.
 pub trait Matches {
     /// Does `a` structurally match `b`?
@@ -135,6 +137,13 @@ impl<'a> Matches for WithRecGroup<&'a CompositeType> {
                 WithRecGroup::map(b, |_| cb),
             ),
             (Cont(_), _) => false,
+
+            (Handler(hca), Handler(hcb)) => Matches::matches(
+                types,
+                WithRecGroup::map(a, |_| hca),
+                WithRecGroup::map(b, |_| hcb),
+            ),
+            (Handler(_), _) => false,
         }
     }
 }
@@ -308,6 +317,20 @@ impl Matches for WithRecGroup<ValType> {
         }
     }
 }
+
+impl<'a> Matches for WithRecGroup<&'a HandlerType> {
+    fn matches(types: &TypeList, a: Self, b: Self) -> bool {
+        a.vals.len() == b.vals.len()
+            && a.vals.iter().zip(b.vals.iter()).all(|(fa, fb)| {
+                Matches::matches(
+                    types,
+                    WithRecGroup::map(a, |_| *fa),
+                    WithRecGroup::map(b, |_| *fb),
+                )
+            })
+    }
+}
+
 
 impl Matches for WithRecGroup<RefType> {
     fn matches(types: &TypeList, a: Self, b: Self) -> bool {
